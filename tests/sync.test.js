@@ -119,8 +119,14 @@ test("tự chọn đúng một kho Pancake", () => {
 });
 
 test("dừng an toàn khi có nhiều kho mà chưa cấu hình", () => {
-  assert.throws(() => selectMisaStock([{ stock_code: "A" }, { stock_code: "B" }]), /MISA_STOCK_CODE/);
-  assert.throws(() => selectPancakeWarehouse([{ id: "A" }, { id: "B" }]), /PANCAKE_WAREHOUSE_ID/);
+  assert.throws(
+    () => selectMisaStock([{ stock_code: "A", stock_name: "Kho A" }, { stock_code: "B", stock_name: "Kho B" }]),
+    /A - Kho A; B - Kho B.*MISA_STOCK_CODE/
+  );
+  assert.throws(
+    () => selectPancakeWarehouse([{ id: "A", name: "Kho A" }, { id: "B", name: "Kho B" }]),
+    /A - Kho A; B - Kho B.*PANCAKE_WAREHOUSE_ID/
+  );
 });
 
 test("phát hiện SKU Pancake bị trùng không phân biệt hoa thường", () => {
