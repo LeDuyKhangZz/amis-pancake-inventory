@@ -8,6 +8,6 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check api/sync.js && node --check api/cron.js && node --check lib/sync.js"
+    "check": "node --check api/sync.js && node --check api/cron.js && node --check api/misa-webhook.js && node --check lib/sync.js"
   }
 }

@@ -14,7 +14,7 @@ Chương trình thực hiện:
 - Chống tạo trùng bằng cách tải lại và đối chiếu SKU Pancake ở đầu mỗi lần chạy.
 - Dừng an toàn khi có nhiều kho mà chưa chỉ rõ kho cần dùng.
 
-Chương trình cố ý **không** đồng bộ giá, ảnh, mô tả, khách hàng, đơn hàng; không xóa sản phẩm; không sửa tên sản phẩm Pancake đã tồn tại; không dùng webhook; và không đồng bộ theo chiều Pancake → AMIS.
+Chương trình cố ý **không** đồng bộ giá, ảnh, mô tả, khách hàng, đơn hàng; không xóa sản phẩm; không sửa tên sản phẩm Pancake đã tồn tại; và không đồng bộ theo chiều Pancake → AMIS. Endpoint webhook AMIS hiện chỉ tiếp nhận an toàn để xác minh cấu trúc sự kiện, chưa tự ghi tồn kho.
 
 ## Cấu trúc dự án
 
@@ -24,6 +24,7 @@ api/
   health.js        GET /api/health
   sync.js          GET preview, POST commit
   cron.js          GET commit dành cho Vercel Cron
+  misa-webhook.js  POST probe nhận sự kiện AMIS có xác thực
 lib/
   config.js        Đọc và kiểm tra biến môi trường
   http.js          HTTP timeout, retry GET và lọc bí mật
@@ -122,6 +123,7 @@ Trước khi đẩy, kiểm tra `git status` và bảo đảm `.env`, `.env.loca
 | `PANCAKE_WAREHOUSE_ID` | Khi Pancake có nhiều kho | ID kho đích |
 | `SYNC_SECRET` | Có | Chuỗi ngẫu nhiên dài bảo vệ chạy thủ công |
 | `CRON_SECRET` | Có | Chuỗi ngẫu nhiên dài khác bảo vệ Cron |
+| `MISA_WEBHOOK_SECRET` | Khi dùng webhook | Chuỗi ngẫu nhiên riêng bảo vệ `/api/misa-webhook` |
 | `CREATE_BATCH_SIZE` | Không | Mặc định `25`; phải là số nguyên dương |
 
 Không thêm tiền tố `NEXT_PUBLIC_`. Có thể tạo chuỗi bí mật trên máy, ví dụ:
@@ -253,6 +255,12 @@ Nếu gói Vercel của bạn hỗ trợ tần suất cao hơn, có thể đổi
 ```
 
 Không giả định Vercel Hobby hỗ trợ lịch mỗi 10 phút. Nếu gói hiện tại không hỗ trợ tần suất đó, hãy giữ lịch hằng ngày, nâng gói hoặc dùng scheduler khác có thể gửi header `Authorization: Bearer CRON_SECRET`.
+
+## 9. Webhook AMIS (giai đoạn xác minh)
+
+Endpoint `POST /api/misa-webhook` dùng header `Authorization: Bearer MISA_WEBHOOK_SECRET`. Endpoint trả `202 Accepted`, ghi log cấu trúc trường nhưng không ghi giá trị payload và chưa chạy commit. Cấu hình này dùng để thay đổi thử một SKU trong AMIS, xác nhận AMIS có thực sự phát sự kiện tồn kho và xác định payload trước khi triển khai cập nhật realtime.
+
+Không bật webhook Pancake cho luồng một chiều AMIS → Pancake. Webhook Pancake chủ yếu phát sự kiện từ Pancake (ví dụ đơn hàng) và chỉ cần thiết nếu sau này thiết kế thêm luồng Pancake → AMIS với cơ chế chống vòng lặp.
 
 ## Quy tắc dữ liệu và lỗi
 
