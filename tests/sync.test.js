@@ -79,7 +79,7 @@ test("chuẩn hóa sản phẩm AMIS, trim SKU/tên và bỏ sản phẩm inacti
       { product_code: " AB-R1 ", product_name: " Xe đạp R1 ", inactive: false },
       { product_code: "OFF", product_name: "Không đồng bộ", inactive: true }
     ],
-    inventory: [{ product_code: "ab-r1", main_stock_quantity: 15 }],
+    inventory: [{ product_code: "ab-r1", order_quantity: 15, main_stock_quantity: 99 }],
     variations: [],
     warehouseId: "w1"
   });
@@ -99,7 +99,7 @@ test("tồn kho âm được chặn về 0", () => {
 test("tồn kho số lẻ bị bỏ qua", () => {
   const plan = buildPlan({
     products: [{ product_code: "A", product_name: "A" }],
-    inventory: [{ product_code: "A", main_stock_quantity: 1.5 }],
+    inventory: [{ product_code: "A", main_stock_quantity: 5, order_quantity: 1.5 }],
     variations: [], warehouseId: "w1"
   });
   assert.equal(plan.create.length, 0);
@@ -152,7 +152,7 @@ test("preview không thực hiện POST ghi dữ liệu", async () => {
 test("commit tạo sản phẩm với đúng tên, hai cấp SKU, kho và tồn ban đầu", async () => {
   const { fetchImpl, state } = makeFetch({
     products: [{ product_code: "AB-R1", product_name: "Xe đạp Abraham R1" }],
-    inventory: [{ product_code: "AB-R1", main_stock_quantity: 15 }]
+    inventory: [{ product_code: "AB-R1", order_quantity: 15, main_stock_quantity: 99 }]
   });
   const result = await commitSync(config, { fetchImpl });
   assert.equal(result.result.created, 1);
@@ -162,21 +162,25 @@ test("commit tạo sản phẩm với đúng tên, hai cấp SKU, kho và tồn 
   assert.equal(product.variations.length, 1);
   assert.equal(product.variations[0].custom_id, "AB-R1");
   assert.deepEqual(product.variations[0].variations_warehouses[0], {
-    warehouse_id: "warehouse-1", remain_quantity: 15
+    warehouse_id: "warehouse-1", remain_quantity: 99
   });
   assert.equal("retail_price" in product, false);
 });
 
-test("commit cập nhật tồn thực tế cho SKU đã tồn tại", async () => {
+test("commit cập nhật Tổng số hàng và Còn trong kho từ hai trường AMIS", async () => {
   const { fetchImpl, state } = makeFetch({
     products: [{ product_code: "AB-R1", product_name: "R1" }],
-    inventory: [{ product_code: "AB-R1", main_stock_quantity: 7 }],
+    inventory: [{ product_code: "AB-R1", order_quantity: 7, main_stock_quantity: 99 }],
     variations: [{ id: "variation-1", custom_id: "ab-r1" }]
   });
   const result = await commitSync(config, { fetchImpl });
   assert.equal(result.result.inventory_updated, 1);
   assert.deepEqual(state.updateBodies[0], {
     is_actual_remain_quantity: true,
+    variations_warehouses: [{ variation_id: "variation-1", warehouse_id: "warehouse-1", remain_quantity: 99 }]
+  });
+  assert.deepEqual(state.updateBodies[1], {
+    is_actual_remain_quantity: false,
     variations_warehouses: [{ variation_id: "variation-1", warehouse_id: "warehouse-1", remain_quantity: 7 }]
   });
 });
@@ -184,7 +188,7 @@ test("commit cập nhật tồn thực tế cho SKU đã tồn tại", async () 
 test("chạy lại không tạo trùng sản phẩm", async () => {
   const { fetchImpl, state } = makeFetch({
     products: [{ product_code: "A-1", product_name: "A" }],
-    inventory: [{ product_code: "A-1", main_stock_quantity: 2 }]
+    inventory: [{ product_code: "A-1", main_stock_quantity: 3, order_quantity: 2 }]
   });
   await commitSync(config, { fetchImpl });
   const second = await commitSync(config, { fetchImpl });
@@ -261,5 +265,7 @@ test("batch cập nhật tồn kho không vượt quá 50 variation", async () =
   const variations = products.map((product, i) => ({ id: `V${i}`, custom_id: product.product_code }));
   const { fetchImpl, state } = makeFetch({ products, variations });
   await commitSync(config, { fetchImpl });
-  assert.deepEqual(state.updateBodies.map((body) => body.variations_warehouses.length), [50, 50, 1]);
+  assert.deepEqual(state.updateBodies.map((body) => [body.is_actual_remain_quantity, body.variations_warehouses.length]), [
+    [true, 50], [false, 50], [true, 50], [false, 50], [true, 1], [false, 1]
+  ]);
 });

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { getMisaWebhookConfig } from "../lib/config.js";
+import { getConfig, getMisaWebhookConfig } from "../lib/config.js";
 import { PublicError } from "../lib/http.js";
+import { commitSync } from "../lib/sync.js";
 import { methodNotAllowed, requireAuthorization, sendError } from "./_shared.js";
 
 const MAX_BODY_BYTES = 256 * 1024;
@@ -26,7 +27,8 @@ function describePayload(value, depth = 0) {
   return description;
 }
 
-export default async function handler(req, res) {
+export function createMisaWebhookHandler({ commitImpl = commitSync, configImpl = getConfig } = {}) {
+  return async function handler(req, res) {
   if (req.method !== "POST") return methodNotAllowed(res, ["POST"]);
 
   try {
@@ -47,13 +49,15 @@ export default async function handler(req, res) {
       payload_shape: describePayload(req.body)
     }));
 
-    return res.status(202).json({
-      ok: true,
-      accepted: true,
-      mode: "probe",
-      request_id: requestId
-    });
+    // Webhooks can be retried, so only update existing SKU quantities here.
+    // Product creation remains in the scheduled/manual sync to avoid duplicates.
+    const result = await commitImpl(configImpl(), { createProducts: false });
+
+    return res.status(result.ok ? 200 : 207).json({ ...result, trigger: "misa_webhook", request_id: requestId });
   } catch (error) {
     return sendError(res, error);
   }
+  };
 }
+
+export default createMisaWebhookHandler();

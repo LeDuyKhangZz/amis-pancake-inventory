@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check api/sync.js && node --check api/cron.js && node --check api/misa-webhook.js && node --check lib/sync.js"
+    "check": "node --check api/sync.js && node --check api/cron.js && node --check api/misa-webhook.js && node --check api/github-sync.js && node --check lib/sync.js && node --check lib/github-oidc.js"
   }
 }

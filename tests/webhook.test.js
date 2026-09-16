@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import handler from "../api/misa-webhook.js";
+import handler, { createMisaWebhookHandler } from "../api/misa-webhook.js";
 
 const SECRET = "test-misa-webhook-secret";
 
@@ -40,13 +40,21 @@ test("MISA webhook từ chối request thiếu secret", async () => withSecret(a
   assert.equal(res.body.error.code, "UNAUTHORIZED");
 }));
 
-test("MISA webhook nhận sự kiện hợp lệ nhưng không ghi dữ liệu nhạy cảm vào log", async () => withSecret(async () => {
+test("MISA webhook nhận sự kiện hợp lệ, cập nhật tồn và không ghi dữ liệu nhạy cảm vào log", async () => withSecret(async () => {
   const logs = [];
   const originalInfo = console.info;
   console.info = (message) => logs.push(String(message));
   try {
+    let commitOptions;
+    const testHandler = createMisaWebhookHandler({
+      configImpl: () => ({}),
+      commitImpl: async (_config, options) => {
+        commitOptions = options;
+        return { ok: true, mode: "commit", result: { inventory_updated: 1, failed: 0 } };
+      }
+    });
     const res = mockResponse();
-    await handler({
+    await testHandler({
       method: "POST",
       headers: {
         authorization: `Bearer ${SECRET}`,
@@ -60,9 +68,11 @@ test("MISA webhook nhận sự kiện hợp lệ nhưng không ghi dữ liệu n
       }
     }, res);
 
-    assert.equal(res.statusCode, 202);
+    assert.equal(res.statusCode, 200);
     assert.equal(res.body.ok, true);
-    assert.equal(res.body.mode, "probe");
+    assert.equal(res.body.mode, "commit");
+    assert.equal(res.body.trigger, "misa_webhook");
+    assert.equal(commitOptions.createProducts, false);
     const serializedLogs = logs.join("\n");
     assert.match(serializedLogs, /product_code/);
     assert.doesNotMatch(serializedLogs, /SECRET-SKU/);

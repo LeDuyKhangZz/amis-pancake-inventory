@@ -1,15 +1,15 @@
 # Đồng bộ tồn kho AMIS CRM → Pancake POS
 
-Chương trình Node.js 20 này đồng bộ **một chiều** danh mục hàng hóa, SKU và tồn kho thực tế từ AMIS CRM sang Pancake POS. AMIS là nguồn dữ liệu gốc. Chương trình chạy dưới dạng các API serverless trên Vercel, không có giao diện và không gọi API sản xuất khi chạy test.
+Chương trình Node.js 24 này đồng bộ **một chiều** danh mục hàng hóa, SKU và tồn kho từ AMIS CRM sang Pancake POS. AMIS là nguồn dữ liệu gốc. Chương trình chạy dưới dạng các API serverless trên Vercel, không có giao diện và không gọi API sản xuất khi chạy test.
 
 ## Phạm vi
 
 Chương trình thực hiện:
 
-- Đọc toàn bộ hàng hóa, kho và `main_stock_quantity` từ AMIS.
+- Đọc `main_stock_quantity` (Số lượng tồn) và `order_quantity` (SL có thể đặt) từ AMIS.
 - Dùng `product_code` AMIS làm SKU ở cả cấp sản phẩm và variation Pancake.
 - Tạo đúng một variation mặc định cho hàng hóa chưa có trong Pancake.
-- Đặt tồn ban đầu khi tạo và cập nhật tồn thực tế cho variation đã tồn tại.
+- Đặt Tổng số hàng Pancake bằng Số lượng tồn AMIS và Còn trong kho bằng SL có thể đặt AMIS.
 - Bỏ qua hàng hóa AMIS có `inactive=true`.
 - Chống tạo trùng bằng cách tải lại và đối chiếu SKU Pancake ở đầu mỗi lần chạy.
 - Dừng an toàn khi có nhiều kho mà chưa chỉ rõ kho cần dùng.
@@ -24,7 +24,7 @@ api/
   health.js        GET /api/health
   sync.js          GET preview, POST commit
   cron.js          GET commit dành cho Vercel Cron
-  misa-webhook.js  POST probe nhận sự kiện AMIS có xác thực
+  misa-webhook.js  POST nhận sự kiện AMIS và cập nhật tồn SKU hiện có
 lib/
   config.js        Đọc và kiểm tra biến môi trường
   http.js          HTTP timeout, retry GET và lọc bí mật
@@ -59,7 +59,7 @@ Client Secret AMIS và API Key Pancake là hai loại khóa khác nhau. Không n
 
 ## 2. Chạy kiểm thử trên máy
 
-Yêu cầu Node.js 20 trở lên. Dự án không có dependency ngoài nên không bắt buộc chạy `npm install`.
+Yêu cầu Node.js 24. Dự án không có dependency ngoài nên không bắt buộc chạy `npm install`.
 
 Bash:
 
@@ -258,7 +258,7 @@ Không giả định Vercel Hobby hỗ trợ lịch mỗi 10 phút. Nếu gói h
 
 ## 9. Webhook AMIS (giai đoạn xác minh)
 
-Endpoint `POST /api/misa-webhook` dùng header `Authorization: Bearer MISA_WEBHOOK_SECRET`. Endpoint trả `202 Accepted`, ghi log cấu trúc trường nhưng không ghi giá trị payload và chưa chạy commit. Cấu hình này dùng để thay đổi thử một SKU trong AMIS, xác nhận AMIS có thực sự phát sự kiện tồn kho và xác định payload trước khi triển khai cập nhật realtime.
+Endpoint `POST /api/misa-webhook` dùng header `Authorization: Bearer MISA_WEBHOOK_SECRET`. Khi nhận yêu cầu hợp lệ, endpoint đọc lại SL có thể đặt từ AMIS và cập nhật tồn cho các SKU đang có trên Pancake. Webhook không tạo sản phẩm mới để các lần gửi lại không gây tạo trùng. Log chỉ ghi cấu trúc trường và số lượng tổng hợp, không ghi giá trị payload.
 
 Không bật webhook Pancake cho luồng một chiều AMIS → Pancake. Webhook Pancake chủ yếu phát sự kiện từ Pancake (ví dụ đơn hàng) và chỉ cần thiết nếu sau này thiết kế thêm luồng Pancake → AMIS với cơ chế chống vòng lặp.
 
